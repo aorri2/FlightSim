@@ -1,0 +1,501 @@
+°·Step 1 - Windows Application
+1----------- V.C. -----------¢π Process the following
+Making windows application
+- [File] - [New] - [Project]
+Create a new project
+- [Windows Desktop Application]
+- [Next]
+Configuration your new project
+- Project name : FlightSim
+- Location : Search for the folder you want to save
+- [Create]
+
+2----------- V.C. -----------¢π[Project] - [Properties] - [Advanced] - [Character Set]
+Use Multi-Byte Character Set
+
+3------<FlightSim.cpp>-------¢π After #include "FlightSim.h"
+#define WX 1024
+#define WY 768
+
+4------<FlightSim.cpp>-------¢π Change 2 parameter of CreateWindowW() like following
+CW_USEDEFAULT, 0, WX, WY, nullptr, nullptr, hInstance, nullptr);
+
+°·Step 2 - Switching to graphics screen
+1----------- V.C. -----------¢π Process the following
+Making new class into new files
+- [Project] - [Add class]
+- Class Name : CObj
+- .h file : Obj.h
+- .cpp file : Obj.cpp
+- [Ok]
+
+2----------- V.C. -----------¢π[Project] - [Properties] - [VC++ Directories] - [Include Dir. & Lib Dir.each]
+C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include
+C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Lib\x86
+- or
+C:\Program Files\Microsoft DirectX SDK (June 2010)\Include
+C:\Program Files\Microsoft DirectX SDK (June 2010)\Lib\x86
+
+3----------<Obj.h>-----------¢π After #pragma once
+#include "stdlib.h"
+#include <D3D9.H>
+#include <D3DX9.H>
+#include "mmsystem.h"
+#pragma warning(disable : 4244)		//	float -> int
+#pragma warning(disable : 4305)		//	double -> float
+#pragma warning(disable : 4316)		//	object allocated on the heap may not be aligned 16
+#pragma warning(disable : 4996)		//	This function or variable may be unsafe
+#pragma comment(lib, "D3DX9.lib")	// if you want..., Instead of these pragmas, do this, [Project]-[Properties]-[Linker]-[Input]-[Additional Dependencies] : Append these lib ";D3DX9.LIB;D3D9.LIB;WINMM.LIB;dsound.lib;dxguid.lib;"
+#pragma comment(lib, "D3D9.lib")
+#pragma comment(lib, "WINMM.lib")
+#pragma comment(lib, "dsound.lib")
+#pragma comment(lib, "dxguid.lib")
+
+typedef D3DXVECTOR3 vec;	// Defining Short Type Name for Vector
+typedef D3DXMATRIXA16 mat;	// Defining Short Type Name for Matrix
+
+#define TImg int
+#define WX 1024
+#define WY 768
+#define Gravity 0.002
+
+extern LPDIRECT3DDEVICE9       pDev;	// Device for Drawing	
+
+
+4-------<FlightSim.h>--------¢π At the end of the file
+#include "Obj.h"
+
+5------<FlightSim.cpp>-------¢π Find following lines and Delete them
+#define WX 1024
+#define WY 768
+
+6----------<Obj.cpp>-------¢π  At the end of the file
+LPDIRECT3DDEVICE9       pDev = NULL;	// Device for Drawing	
+CObjEng* pObjEng = NULL;
+
+7-----------<Obj.h>--------¢π At the end of the file
+extern class CObjEng {
+	LPDIRECT3D9             pD3D = NULL;	// DirectX3D		
+public:
+	HWND hWnd = NULL;
+	CObjEng() { pObjEng = this; }
+	HRESULT InitD3D(HWND hWnd)
+	{
+		CObjEng::hWnd = hWnd;
+		if (NULL == (pD3D = Direct3DCreate9(D3D_SDK_VERSION)))
+			return E_FAIL;
+
+		D3DPRESENT_PARAMETERS d3dpp;	//	Device descriptor
+		ZeroMemory(&d3dpp, sizeof(d3dpp));
+		d3dpp.BackBufferCount = 1;
+		d3dpp.BackBufferHeight = (UINT)WX;
+		d3dpp.BackBufferWidth = (UINT)WY;
+		d3dpp.hDeviceWindow = hWnd;
+		d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+		d3dpp.BackBufferFormat = D3DFMT_X8R8G8B8;
+		d3dpp.EnableAutoDepthStencil = TRUE;
+		d3dpp.Windowed = TRUE;
+		d3dpp.Flags = 0;
+		d3dpp.AutoDepthStencilFormat = D3DFMT_D24S8;
+		d3dpp.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
+		d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+
+		//	Creating Device(Drawing surface and tools)
+		if (FAILED(pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL,
+			hWnd, D3DCREATE_HARDWARE_VERTEXPROCESSING,
+			&d3dpp, &pDev)))
+		{
+			return E_FAIL;
+		}
+		pDev->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);	// Off Culling
+		pDev->SetRenderState(D3DRS_ZENABLE, TRUE);			// Use Z-Buffer
+
+		// About Light
+		D3DLIGHT9 g_light;
+		ZeroMemory(&g_light, sizeof(D3DLIGHT9));
+		g_light.Type = D3DLIGHT_DIRECTIONAL;
+		g_light.Diffuse.r = 1.;
+		g_light.Diffuse.g = 1.;
+		g_light.Diffuse.b = 1.;
+		D3DXVec3Normalize((D3DXVECTOR3*)& g_light.Direction, &vec(1, -1, 1));
+		g_light.Range = 100000.0;
+		pDev->SetLight(0, &g_light);
+		pDev->LightEnable(0, TRUE);
+		pDev->SetRenderState(D3DRS_LIGHTING, TRUE);
+		pDev->SetRenderState(D3DRS_AMBIENT, 0x00202020);
+		pDev->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+
+		return S_OK;
+	}
+	virtual void InitGeometry() {}
+	virtual void InitObject() {}
+	virtual void Cleanup() {}
+	virtual void Render()
+	{
+		// Initialize BackBuffer and Z-Buffer
+		pDev->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
+
+		// Start of Rendering
+		if (SUCCEEDED(pDev->BeginScene()))
+		{
+			// Rendering Here, Render object to BackBuffer
+			pDev->EndScene();	// End of Rendering 
+		}
+		pDev->Present(NULL, NULL, NULL, NULL);	//	Showing Result
+	}
+	virtual void Physics() {}
+	virtual void Frame() {}
+} *pObjEng;
+
+8-------<FlightSim.h>--------¢π At the end of the file
+class CFlightSim : public CObjEng
+{
+public:
+	CFlightSim() {}
+	void Init(HWND hWnd)
+	{
+		InitD3D(hWnd);
+		InitGeometry();
+		InitObject();
+	}
+	virtual void InitGeometry() {}
+	virtual void InitObject() {}
+	virtual void Shoot(CObj& obj, TImg g) {}
+};
+
+9------<FlightSim.cpp>-------¢π After #include "FlightSim.h"
+CFlightSim FlightSim;
+
+10------<FlightSim.cpp>-------¢π After UpdateWindow(hWnd);
+	FlightSim.Init(hWnd);
+
+11------<FlightSim.cpp>-------¢π Replace following code after // Main message loop:
+	// Main message loop:
+	ZeroMemory(&msg, sizeof(msg));
+	while (msg.message != WM_QUIT)
+	{
+		if (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		FlightSim.Frame();
+		FlightSim.Render();
+
+		//	Define FPS(Frame Per Second) to 15ms
+		static DWORD ot, t;
+		t = timeGetTime();
+		if (ot == 0) ot = t;
+		if (t - ot > 15) {
+			FlightSim.Frame();
+			ot += 15;
+		}
+	}
+
+°·Step 3 - Drawing vertex based objects
+1-----------<Obj.h>--------¢π After extern LPDIRECT3DDEVICE9       pDev;	// Device for Drawing
+#define D3DFVF_CUSTOMVERTEX (D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1) // Definition for FVF(Flexible Vertex Format), Vertices use position, color and one texture mapping information
+struct CUSTOMVERTEX
+{
+	FLOAT x, y, z;	// Position of vertex
+	DWORD color;	// Color of vertex
+	FLOAT u, v;		// Position for texture mapping 
+};
+struct MYINDEX { WORD _0, _1, _2; };	//	Structure of indices for a triangle's 3 vertices
+
+class CImg {
+protected:
+	LPDIRECT3DTEXTURE9* pTex;
+	int					nTex;
+	TImg				gen;
+	mat					mCoord;
+	double				buoyancy;
+	double				lift;
+	vec					friction;
+
+public:
+	_D3DCULL			CullMode;
+	CImg(TImg g, vec front, vec up, vec scale, vec fr) {
+		pTex = NULL;
+		nTex = 0;
+		gen = g;
+		buoyancy = Gravity;//0.001;
+		friction = fr;
+		lift = 0;
+		mat mRot, mScale;
+		D3DXMatrixLookAtLH(&mRot, &vec(0, 0, 0), &front, &up);
+		D3DXMatrixScaling(&mScale, scale.x, scale.y, scale.z);
+		mCoord = mRot * mScale;
+		CullMode = D3DCULL_CCW;
+
+	}
+	~CImg() {
+		if (pTex)
+		{
+			for (int i = 0; i < nTex; i++)
+				if (pTex[i]) pTex[i]->Release();
+			delete[] pTex;
+		}
+	}
+
+	virtual void Disp(mat& mWorld) {
+		mat m;
+		m = mCoord * mWorld;
+		pDev->SetTransform(D3DTS_WORLD, &m);
+		pDev->SetRenderState(D3DRS_CULLMODE, CullMode);
+	};
+	friend class CObjEng;
+};
+
+class CVer : public CImg {
+
+	LPDIRECT3DVERTEXBUFFER9	pVB;
+	LPDIRECT3DINDEXBUFFER9	pIB;
+	int* Prim;			//	Number of triangle of each Texture
+	DWORD Fvf;
+	int nVer, szVer;	//	Number of vertices, Number of byte for a vertex
+public:
+	CVer(TImg g, vec front, vec up, vec scale, vec fr = vec(10, 10, 10)) : CImg(g, front, up, scale, fr) {
+		pVB = NULL;
+		pIB = NULL;
+		Prim = NULL;
+	}
+
+	~CVer() {
+		if (pVB) pVB->Release();
+		if (pIB) pIB->Release();
+		if (Prim) delete Prim;
+	}
+
+	bool InitVIBTex(void* vertices, int vsz, int nver, DWORD fvf, /**/ void* indices, int isz, /**/ int* prim, const char** texname) {
+		///////////////////////// Vertices
+		if (FAILED(pDev->CreateVertexBuffer(vsz, 0, fvf, D3DPOOL_DEFAULT, &pVB, NULL)))
+			return false;
+
+		if (vertices) {
+			VOID* pVertices;
+			if (FAILED(pVB->Lock(0, vsz, (void**)& pVertices, 0)))
+				return false;
+			memcpy(pVertices, vertices, vsz);
+			pVB->Unlock();
+			Fvf = fvf;
+			nVer = nver;
+			szVer = vsz / nver;
+		}
+		///////////////////////// Indices
+
+		if (FAILED(pDev->CreateIndexBuffer(isz, 0, D3DFMT_INDEX16, D3DPOOL_DEFAULT, &pIB, NULL)))
+			return false;
+
+		if (indices) {
+			VOID* pIndices;
+			if (FAILED(pIB->Lock(0, isz, (void**)& pIndices, 0)))
+				return false;
+			memcpy(pIndices, indices, isz);
+			pIB->Unlock();
+		}
+		///////////////////////// Texture
+		for (nTex = 0; prim[nTex]; nTex++);
+		pTex = new LPDIRECT3DTEXTURE9[nTex];
+		Prim = new int[nTex];
+		memcpy(Prim, prim, sizeof(int) * nTex);
+		for (int i = 0; i < nTex; i++) {
+			if (texname[i][0] == 0) // texname[i][0] == ""	no texture
+				pTex[i] = 0;
+			else if (FAILED(D3DXCreateTextureFromFile(pDev, texname[i], &pTex[i])))
+				return false;
+		}
+
+		return true;
+	}
+
+	void Disp(mat& wm) {
+		CImg::Disp(wm);
+		pDev->SetStreamSource(0, pVB, 0, szVer);
+		pDev->SetFVF(Fvf);
+		pDev->SetIndices(pIB);
+		int i, sum;
+		for (i = sum = 0; i < nTex; i++, sum += Prim[i]) {
+			if (pTex[i]) {
+				pDev->SetTexture(0, pTex[i]);
+				pDev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+			}
+			else
+				pDev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG2);
+			pDev->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, nVer, sum * 3, Prim[i]);
+		}
+	}
+};
+
+class CPlane : public CVer {
+public:
+	CPlane(TImg g, const char* sTexName, vec front, vec up, vec scale, vec fr = vec(10, 10, 10)) : CVer(g, front, up, scale, fr) {
+		CullMode = D3DCULL_NONE;
+		CUSTOMVERTEX svertices[] =
+		{
+			{ -1.5,  0,  1.5, 0xff0000ff, 0, 0 },		/// v0
+			{  1.5,  0,  1.5, 0xff0000ff, 0, 1 },		/// v1
+			{  1.5,  0, -1.5, 0xff0000ff, 1, 1 },		/// v2
+			{ -1.5,  0, -1.5, 0xff0000ff, 1, 0 },		/// v3
+		};
+
+		MYINDEX	sindices[] =
+		{
+			{ 0, 1, 2 }, { 0, 2, 3 },
+		};
+
+		int sPrim[6] = { 2, 0 };
+		const char* saTexName[] = { sTexName, 0 };
+		InitVIBTex(svertices, sizeof svertices, sizeof svertices / sizeof(CUSTOMVERTEX), D3DFVF_CUSTOMVERTEX, sindices, sizeof sindices, sPrim, saTexName);
+	}
+};
+
+class CCam {
+	FLOAT fovy, Aspect, zn, zf;
+	vec pos, front, up;
+
+public:
+	CCam(FLOAT fo = D3DX_PI / 4, FLOAT a = (FLOAT)WX / WY, FLOAT n = 0.4f, FLOAT f = 100000.0f) {
+		fovy = fo; Aspect = a; zn = n; zf = f;
+	}
+	void SetMatrices()
+	{
+		D3DXVECTOR3 vLookatPt = pos + front;
+		D3DXMATRIXA16 matView;
+		D3DXMatrixLookAtLH(&matView, &pos, &vLookatPt, &up);
+		pDev->SetTransform(D3DTS_VIEW, &matView);
+
+		D3DXMATRIXA16 matProj;
+		D3DXMatrixPerspectiveFovLH(&matProj, fovy, Aspect, zn, zf);
+		pDev->SetTransform(D3DTS_PROJECTION, &matProj);
+	}
+	void Move(const vec& p, const vec& f, const vec& u, float ratio)
+	{
+		pos += (p - pos) * ratio;
+		front += (f - front) * ratio;
+		up += (u - up) * ratio;		//	delete for cam up vec fixed
+	}
+};
+
+2-----------<Obj.h>--------¢π After HWND hWnd = NULL;
+	CCam cam;
+	CImg* pImg = 0;
+
+3--------------------------¢π
+Prepare an image("res\\Puppy.jpeg") you want to see into the folder res
+
+4-------<FlightSim.h>------¢π Replace virtual void InitGeometry();
+	virtual void InitGeometry()
+	{
+		pImg = new CPlane(0, "res\\Puppy.jpeg", vec(0, 0, -1), vec(0, 1, 0), vec(2, 2, 2));
+	}
+
+5-----------<Obj.h>--------¢π Insert to the 1st line of Render()
+		cam.Move(vec(-5, 10, 0), vec(0.5, -1, 0), vec(1, 0, 0), 1);	//	Down look from (0,10,0)
+		cam.SetMatrices();
+
+6-----------<Obj.h>--------¢π After 	// Rendering Here, Render object to BackBuffer
+			mat mWorld;
+			D3DXMatrixIdentity(&mWorld);
+			static float a = 0, b = 0;
+			D3DXMatrixRotationY(&mWorld, a += 0.0001);
+			//D3DXMatrixTranslation(&mWorld, a += 0.001, 0, 0);
+			//D3DXMatrixScaling(&mWorld, a += 0.001, a, a);
+			//pDev->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);	// Off Culling
+			pImg->Disp(mWorld);
+
+°·Step 4 - Drawing Mesh based objects
+1--------------------------¢π
+Prepare a 3D Object(.x) ("res\\Airplane") to draw
+
+2-----------<Obj.h>--------¢π Behind class CCam {
+class CMesh : public CImg {
+
+	LPD3DXMESH		pMesh;  //	Pointer to Mesh
+	D3DMATERIAL9*	pMat;	//	Pointer to Materials
+	DWORD			nMat;	//	Number of Materials
+
+public:
+	CMesh(TImg g, vec front, vec up, vec scale, vec fr = vec(10, 10, 10)) : CImg(g, front, up, scale, fr) {
+		pMesh = NULL;
+		pMat = NULL;
+	}
+	~CMesh() {
+		if (pMesh) pMesh->Release();
+	}
+	bool Load(const char* fname) {
+		LPD3DXBUFFER pD3DXMtrlBuffer;
+
+		// Read .x file and materials
+		D3DXLoadMeshFromX(fname, D3DXMESH_SYSTEMMEM, pDev, NULL, &pD3DXMtrlBuffer, NULL, &nMat, &pMesh);
+
+		// Extracting the information of materials and texture
+		D3DXMATERIAL* d3dxMaterials = (D3DXMATERIAL*)pD3DXMtrlBuffer->GetBufferPointer();
+		pMat = new D3DMATERIAL9[nMat];
+		pTex = new LPDIRECT3DTEXTURE9[nMat];
+		nTex = nMat;
+
+		for (DWORD i = 0; i < nMat; i++)
+		{
+			pMat[i] = d3dxMaterials[i].MatD3D;
+			pMat[i].Ambient = pMat[i].Diffuse;
+
+			pTex[i] = NULL;
+			if (d3dxMaterials[i].pTextureFilename != NULL && lstrlen(d3dxMaterials[i].pTextureFilename) > 0) {
+				char dummy[100], path[100], driver[100];
+				_splitpath(fname, driver, path, dummy, dummy);
+				strcpy(dummy, driver);
+				strcat(dummy, path);
+				strcat(dummy, d3dxMaterials[i].pTextureFilename);
+				D3DXCreateTextureFromFile(pDev, dummy, &pTex[i]);
+			}
+		}
+
+		pD3DXMtrlBuffer->Release(); //	release temporary buffer
+
+		return S_OK;
+	}
+
+	bool virtual TransMtrl(int nMat, mat& mMtrl) { return false; }
+
+	void Disp(mat& mWorld) {
+		CImg::Disp(mWorld);
+		for (DWORD i = 0; i < nMat; i++)
+		{
+			mat mMat;
+			if (TransMtrl(i, mMat)) {
+				mat mOld, mThis;
+				pDev->GetTransform(D3DTS_WORLD, &mOld);
+				mThis = mMat * mOld;
+				pDev->SetTransform(D3DTS_WORLD, &mThis);
+
+				pDev->SetMaterial(&pMat[i]);
+				pDev->SetTexture(0, pTex[i]);
+				pMesh->DrawSubset(i);
+
+				pDev->SetTransform(D3DTS_WORLD, &mOld);
+				continue;
+			}
+
+			if (pTex[i]) {
+				pDev->SetTexture(0, pTex[i]);
+				pDev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+			}
+			else
+				pDev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG2);
+
+			pDev->SetMaterial(&pMat[i]);
+			pMesh->DrawSubset(i);
+		}
+	}
+};
+
+3-----------<Obj.h>--------¢π After CImg* pImg = 0;
+	CMesh* pMeshImg = 0;
+
+4-------<FlightSim.h>------¢π After 	pImg = new CPlane(0, "res\\Puppy.jpeg", vec(0, 0, -1), vec(0, 1, 0), vec(2, 2, 2));
+		pMeshImg = new CMesh(0, vec(0, 0, 1), vec(0, 1, 0), vec(1, 1, 1), vec(0.001, 0.001, 0.0001));
+		pMeshImg->Load("res\\airplane\\airplane 2.x");
+
+5-----------<Obj.h>--------¢π After 	pImg->Disp(mWorld);
+			pMeshImg->Disp(mWorld);

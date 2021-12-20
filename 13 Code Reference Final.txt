@@ -1,0 +1,147 @@
+■01 Etc
+- Showing all characters
+- Modify Fighter control factor
+		if (GetKeyState(VK_UP) & 0x8000) Accel(0.05);
+		if (GetKeyState(VK_DOWN) & 0x8000) Break(0.99);
+
+■02 CObjEng::Frame()
+- Remove CFlightSim::Frame() first
+void CObjEng::Frame()
+{
+	Physics();
+
+	for (int i = 0; i < MAXOBJ; i++)
+		if (o[i]) o[i]->Move();
+
+	for (int i = 0; i < MAXOBJ; i++)
+		if (o[i])
+			for (int j = 0; j < MAXOBJ; j++)
+				if (o[j] && i != j) {
+					if (o[i]->Conflict(o[j])) {		//	Confliction test
+					}
+				}
+
+	for (int i = 0; i < MAXOBJ; i++)
+		if (o[i])
+			if (!o[i]->Alive()) {
+				delete o[i];
+				o[i] = NULL;
+			}
+}
+
+■03 CObjEng::Physics()
+- Set Fighters Pos(0, 30, 0)
+- Set Camera Pos(100,0,0),Front(-1, 0, 0) for statical position
+  or Move(GetvPos() + GetvFront() * -10 + GetvUp() * 2, GetvFront(), GetvUp(), 0.5); for tracing the Fighter
+- modify team constant
+  enum { MYTEAM = 1, ENTEAM, NOTEAM };
+- 
+void CObjEng::Physics()
+{
+	//	Gravity, Buoyancy
+	for (int i = 0; i < MAXOBJ; i++) {
+		if (o[i] == NULL || o[i]->team == 0) continue;
+
+		if (o[i]->pos.y > 0)		o[i]->Forced(vec(0, -Gravity, 0));							// Gravity when on the water surface 
+		else if (o[i]->pos.y < 0)	o[i]->Forced(vec(0, gmng.GeTImg(o[i]->Img)->buoyancy, 0));	// Buoyancy when under water
+	}
+	for (int i = 0; i < MAXOBJ; i++) {
+		if (o[i] == NULL) continue;
+
+		//	Confliction
+		vec cross, fr, fv, vf, vc, vu;
+		float f, c, u;
+		D3DXVec3Cross(&cross, &o[i]->front, &o[i]->up);
+		fr = gmng.GeTImg(o[i]->Img)->friction;
+		f = D3DXVec3Dot(&o[i]->speed, &o[i]->front);		// front direction confliction
+		c = D3DXVec3Dot(&o[i]->speed, &cross);				// side direction confliction
+		u = D3DXVec3Dot(&o[i]->speed, &o[i]->up);			// up and lower direction confliction
+		vf = o[i]->front * f * -fr.z;
+		vc = cross * c * -fr.x;
+		vu = o[i]->up * u * -fr.y;
+		vf = vf + vc + vu;
+		o[i]->speed += vf;									// power from confliction (confliction each dir * confliction constant each dir)
+
+		//	Lift
+		o[i]->speed += o[i]->up * f * gmng.GeTImg(o[i]->Img)->lift;
+	}
+}
+
+■04 class CMine
+class CMine : public CObj {
+	DWORD tCreate;
+public:
+	CMine(CObj Shooter) : CObj(Shooter.Team()) {
+		tCreate = timeGetTime();
+		Setup(vec(100000, 1, 1), vec(0, 0, -1), vec(0, 1, 0), vec(10, 10, 10), IMINE);
+		CObj::Move(Shooter);
+		size = 10;
+
+		vec v = up * 0;
+		Forced(v);
+	}
+	void Move() {
+		CObj::Move();
+		vec v;
+		v.x = (rand() % 2001 - 1000) / 10000.F;
+		v.y = (rand() % 2001 - 1000) / 10000.F;
+		v.z = (rand() % 2001 - 1000) / 10000.F;
+		Forced(v);
+		Forced(vec(0, Gravity * 0.9, 0));
+
+		if (timeGetTime() - tCreate > 50000)
+			alive = false;
+	}
+};
+
+■05 class CBullet
+class CBullet : public CObj {
+	DWORD tCreate;
+public:
+	CBullet(CObj& Shooter) : CObj(Shooter.Team()) {
+		tCreate = timeGetTime();
+		Setup(vec(100000, 1, 1), vec(0, 0, -1), vec(0, 1, 0), vec(0.4, 0.4, 0.4), IBULLET);
+		CObj::Move(Shooter);
+		Forced(10);
+		Forced(Shooter.Speed());
+		size = 1;
+	}
+	void Move() {
+		CObj::Move();
+		if (timeGetTime() - tCreate > 2000)
+			alive = false;
+	}
+};
+
+■06 Handling weapons
+- into CObjEng class
+	virtual void Shoot(CObj& obj, TImg g);
+
+-into CFlightSim
+	virtual void Shoot(CObj& obj, TImg g)
+	{
+		int i;
+		for (i = 1; i < MAXOBJ && o[i]; i++);	//	Finding Empty Slot
+		if (i < MAXOBJ)
+			if (g == IBULLET)	o[i] = new CBullet(obj);
+			else				o[i] = new CMine(obj);
+	}
+
+■07 Applying weapons
+- for Fighter
+		if (GetKeyState(VK_SPACE) & 0x8000) {
+			static int FireDelay;
+			if (FireDelay++ % 5 == 0) pObjEng->Shoot(*this, IBULLET); 
+		}
+		if (GetKeyState(VK_ESCAPE) & 0x8000)	PostQuitMessage(0);
+- for Ships
+class CShip : public CObj {
+public:
+	CShip(int t) : CObj(t) {
+	}
+	void Move() {
+		CObj::Move();
+		if (rand() % 100 == 0)	pObjEng->Shoot(*this, IBULLET); //100번에 한번정도
+		if (rand() % 500 == 0)	pObjEng->Shoot(*this, IMINE); //500번에 한번정도
+	}
+};
